@@ -1,0 +1,80 @@
+{
+  "manifest_version": "0.4",
+  "name": "polybridge-mcp",
+  "display_name": "PolyBridge MCP",
+  "version": "0.2.7",
+  "description": "Probabilistic foresight from live prediction markets for Claude Desktop.",
+  "long_description": "PolyBridge MCP gives Claude Desktop probabilistic foresight from live prediction markets. Ask a question about the future, even when no exact market exists. PolyBridge finds relevant markets, synthesizes the evidence, and returns a read-only forecast with probabilities and source-market metadata.\n\nNo API key is required at anonymous limits. Add POLYBRIDGE_API_KEY only for higher usage. PolyBridge MCP is read-only. It does not trade or move funds.",
+  "icon": "assets/icon.png",
+  "author": {
+    "name": "PolyBridge"
+  },
+  "homepage": "https://polybridge.ai",
+  "server": {
+    "type": "uv",
+    "entry_point": "src/polybridge_mcp_server/__main__.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "${__dirname}",
+        "polybridge-mcp-server"
+      ],
+      "env": {
+        "POLYBRIDGE_ATTRIBUTION_CODE": "${user_config.POLYBRIDGE_ATTRIBUTION_CODE}",
+        "POLYBRIDGE_API_KEY": "${user_config.POLYBRIDGE_API_KEY}",
+        "POLYBRIDGE_API_BASE_URL": "${user_config.POLYBRIDGE_API_BASE_URL}"
+      }
+    }
+  },
+  "user_config": {
+    "POLYBRIDGE_ATTRIBUTION_CODE": {
+      "type": "string",
+      "title": "Attribution code",
+      "description": "Code sent with PolyBridge Search and Forecast API requests for builder attribution.",
+      "default": "builder-program"
+    },
+    "POLYBRIDGE_API_KEY": {
+      "type": "string",
+      "title": "PolyBridge API key",
+      "description": "No API key is required at anonymous limits. Add POLYBRIDGE_API_KEY only for higher usage.",
+      "default": "",
+      "sensitive": true
+    },
+    "POLYBRIDGE_API_BASE_URL": {
+      "type": "string",
+      "title": "PolyBridge API base URL",
+      "description": "Base URL for the PolyBridge Search and Forecast APIs.",
+      "default": "https://api.polybridge.ai"
+    }
+  },
+  "tools": [
+    {
+      "name": "polybridge_search",
+      "description": "Search PolyBridge prediction markets relevant to a topic or question."
+    },
+    {
+      "name": "polybridge_forecast",
+      "description": "Generate a read-only forecast using PolyBridge market search and evidence synthesis."
+    }
+  ],
+  "tools_generated": false,
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "linux",
+      "win32"
+    ],
+    "runtimes": {
+      "python": ">=3.12"
+    }
+  },
+  "keywords": [
+    "polybridge",
+    "search",
+    "forecast",
+    "prediction-markets",
+    "mcp"
+  ]
+}
