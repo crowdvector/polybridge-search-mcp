@@ -2,9 +2,9 @@
   "manifest_version": "0.4",
   "name": "polybridge-mcp",
   "display_name": "PolyBridge MCP",
-  "version": "0.2.7",
-  "description": "Probabilistic foresight from live prediction markets for Claude Desktop.",
-  "long_description": "PolyBridge MCP gives Claude Desktop probabilistic foresight from live prediction markets. Ask a question about the future, even when no exact market exists. PolyBridge finds relevant markets, synthesizes the evidence, and returns a read-only forecast with probabilities and source-market metadata.\n\nNo API key is required at anonymous limits. Add POLYBRIDGE_API_KEY only for higher usage. PolyBridge MCP is read-only. It does not trade or move funds.",
+  "version": "0.3.0",
+  "description": "Read-only PolyBridge tools for Search, Forecast, and approved RVOL data access.",
+  "long_description": "PolyBridge MCP gives Claude Desktop probabilistic foresight from live prediction markets and approved read-only RVOL data access. Ask a question about the future, even when no exact market exists, or inspect approved realized-volatility model outputs when your PolyBridge API key includes rvol:read.\n\nSearch and Forecast can run without an API key at anonymous limits. Add POLYBRIDGE_API_KEY for higher Search/Forecast usage and for approved RVOL access. PolyBridge MCP is read-only. It does not trade or move funds.",
   "icon": "assets/icon.png",
   "author": {
     "name": "PolyBridge"
@@ -32,20 +32,20 @@
     "POLYBRIDGE_ATTRIBUTION_CODE": {
       "type": "string",
       "title": "Attribution code",
-      "description": "Code sent with PolyBridge Search and Forecast API requests for builder attribution.",
+      "description": "Code sent with PolyBridge Search, Forecast, and RVOL API requests for builder attribution.",
       "default": "builder-program"
     },
     "POLYBRIDGE_API_KEY": {
       "type": "string",
       "title": "PolyBridge API key",
-      "description": "No API key is required at anonymous limits. Add POLYBRIDGE_API_KEY only for higher usage.",
+      "description": "Optional for Search and Forecast higher limits. Required for approved RVOL tools; the key must include rvol:read. Do not paste API keys into chat.",
       "default": "",
       "sensitive": true
     },
     "POLYBRIDGE_API_BASE_URL": {
       "type": "string",
       "title": "PolyBridge API base URL",
-      "description": "Base URL for the PolyBridge Search and Forecast APIs.",
+      "description": "Base URL for the PolyBridge Search, Forecast, and RVOL APIs.",
       "default": "https://api.polybridge.ai"
     }
   },
@@ -57,6 +57,30 @@
     {
       "name": "polybridge_forecast",
       "description": "Generate a read-only forecast using PolyBridge market search and evidence synthesis."
+    },
+    {
+      "name": "polybridge_rvol_models",
+      "description": "Read-only RVOL models lookup. Requires POLYBRIDGE_API_KEY with rvol:read."
+    },
+    {
+      "name": "polybridge_rvol_assets",
+      "description": "Read-only RVOL assets lookup. Requires POLYBRIDGE_API_KEY with rvol:read."
+    },
+    {
+      "name": "polybridge_rvol_latest",
+      "description": "Read-only latest RVOL forecasts lookup. Requires POLYBRIDGE_API_KEY with rvol:read."
+    },
+    {
+      "name": "polybridge_rvol_history",
+      "description": "Read-only RVOL forecast history lookup. Requires POLYBRIDGE_API_KEY with rvol:read."
+    },
+    {
+      "name": "polybridge_rvol_actuals",
+      "description": "Read-only RVOL actuals lookup. Requires POLYBRIDGE_API_KEY with rvol:read."
+    },
+    {
+      "name": "polybridge_rvol_features_latest",
+      "description": "Read-only latest RVOL feature metadata lookup. Requires POLYBRIDGE_API_KEY with rvol:read."
     }
   ],
   "tools_generated": false,
@@ -74,6 +98,7 @@
     "polybridge",
     "search",
     "forecast",
+    "rvol",
     "prediction-markets",
     "mcp"
   ]

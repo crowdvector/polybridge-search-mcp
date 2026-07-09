@@ -70,7 +70,6 @@ class ScalarPricePoint(BaseModel):
 class MarketHistoryPoint(BaseModel):
     timestamp: datetime
     probability: float | None = None
-    provenance: str | None = None
 
 
 class MarketHistorySeries(BaseModel):

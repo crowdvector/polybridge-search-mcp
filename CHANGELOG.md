@@ -1,5 +1,13 @@
 # Changelog
 
+## PolyBridge MCP v0.3.0 (unreleased)
+
+- Adds six read-only RVOL MCP tools for models, assets, latest forecasts, forecast history, actuals, and latest feature snapshot metadata.
+- Requires approved PolyBridge API-key access with `rvol:read` for RVOL; RVOL does not support anonymous access.
+- Keeps Search and Forecast anonymous behavior unchanged, with `POLYBRIDGE_API_KEY` still optional for higher Search/Forecast usage.
+- Bumps the package version to 0.3.0 for the new RVOL tool family.
+- Builds on the source-controlled MCPB package restored before this change.
+
 ## PolyBridge MCP v0.2.6
 
 - Simplifies the Claude Desktop MCPB install-card description.
