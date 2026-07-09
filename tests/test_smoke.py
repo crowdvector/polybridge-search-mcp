@@ -29,13 +29,22 @@ EXPECTED_RVOL_TOOL_NAMES = {
     "polybridge_rvol_actuals",
     "polybridge_rvol_features_latest",
 }
+CURRENT_VERSION = "0.3.1"
+
+
+def _stale_assets_input_name() -> str:
+    return "include" + "_inactive"
+
+
+def _stale_features_input_name() -> str:
+    return "feature" + "_set" + "_id"
 
 
 class PolybridgeMCPSmokeTest(unittest.IsolatedAsyncioTestCase):
     def test_package_imports(self) -> None:
         import polybridge_mcp_server
 
-        self.assertEqual(polybridge_mcp_server.__version__, "0.3.0")
+        self.assertEqual(polybridge_mcp_server.__version__, CURRENT_VERSION)
 
     def test_release_surface_versions_match(self) -> None:
         import polybridge_mcp_server
@@ -43,9 +52,9 @@ class PolybridgeMCPSmokeTest(unittest.IsolatedAsyncioTestCase):
         manifest = json.loads(Path("manifest.json").read_text())
         pyproject = tomllib.loads(Path("pyproject.toml").read_text())
 
-        self.assertEqual(manifest["version"], "0.3.0")
-        self.assertEqual(pyproject["project"]["version"], "0.3.0")
-        self.assertEqual(polybridge_mcp_server.__version__, "0.3.0")
+        self.assertEqual(manifest["version"], CURRENT_VERSION)
+        self.assertEqual(pyproject["project"]["version"], CURRENT_VERSION)
+        self.assertEqual(polybridge_mcp_server.__version__, CURRENT_VERSION)
 
     def test_manifest_release_copy_and_tools(self) -> None:
         manifest = json.loads(Path("manifest.json").read_text())
@@ -86,6 +95,21 @@ class PolybridgeMCPSmokeTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(EXPECTED_TOOL_NAMES.issubset(tools))
         for tool_name in EXPECTED_TOOL_NAMES:
             self.assertTrue(tools[tool_name].annotations.readOnlyHint)
+
+    async def test_rvol_tool_schemas_do_not_expose_stale_inputs(self) -> None:
+        from polybridge_mcp_server.config import PolybridgeMCPConfig
+        from polybridge_mcp_server.server import create_server
+
+        mcp_server = create_server(config=PolybridgeMCPConfig())
+        tools = {tool.name: tool for tool in await mcp_server.list_tools()}
+
+        assets_schema = tools["polybridge_rvol_assets"].inputSchema
+        features_schema = tools["polybridge_rvol_features_latest"].inputSchema
+
+        self.assertNotIn(_stale_assets_input_name(), assets_schema["properties"])
+        self.assertNotIn(_stale_assets_input_name(), json.dumps(assets_schema))
+        self.assertNotIn(_stale_features_input_name(), features_schema["properties"])
+        self.assertNotIn(_stale_features_input_name(), json.dumps(features_schema))
 
     def test_api_key_env_handling_imports_without_printing_values(self) -> None:
         from polybridge_mcp_server.config import PolybridgeMCPConfig
@@ -175,9 +199,9 @@ class PolybridgeMCPSmokeTest(unittest.IsolatedAsyncioTestCase):
             ),
             (
                 "polybridge_rvol_assets",
-                {"include_inactive": True, "limit": 3},
+                {"limit": 3},
                 "/v1/rvol/assets",
-                {"include_inactive": "true", "limit": "3"},
+                {"limit": "3"},
             ),
             (
                 "polybridge_rvol_latest",
@@ -225,9 +249,9 @@ class PolybridgeMCPSmokeTest(unittest.IsolatedAsyncioTestCase):
             ),
             (
                 "polybridge_rvol_features_latest",
-                {"asset": "BTC", "feature_set_id": "public-features", "limit": 7},
+                {"asset": "BTC", "limit": 7},
                 "/v1/rvol/features/latest",
-                {"asset": "BTC", "feature_set_id": "public-features", "limit": "7"},
+                {"asset": "BTC", "limit": "7"},
             ),
         ]
 
@@ -426,10 +450,11 @@ class PolybridgeMCPSmokeTest(unittest.IsolatedAsyncioTestCase):
             )
 
             artifact_path = (
-                Path(temporary_directory) / "polybridge-mcp-v0.3.0.mcpb"
+                Path(temporary_directory) / f"polybridge-mcp-v{CURRENT_VERSION}.mcpb"
             )
             checksum_path = (
-                Path(temporary_directory) / "polybridge-mcp-v0.3.0.mcpb.sha256"
+                Path(temporary_directory)
+                / f"polybridge-mcp-v{CURRENT_VERSION}.mcpb.sha256"
             )
 
             self.assertTrue(artifact_path.is_file())
@@ -440,9 +465,17 @@ class PolybridgeMCPSmokeTest(unittest.IsolatedAsyncioTestCase):
                 names = set(package.namelist())
                 manifest = json.loads(package.read("manifest.json"))
                 pyproject = tomllib.loads(package.read("pyproject.toml").decode())
+                bundled_text = "\n".join(
+                    package.read(name).decode("utf-8")
+                    for name in (
+                        "manifest.json",
+                        "src/polybridge_mcp_server/server.py",
+                        "src/polybridge_mcp_server/tools/rvol.py",
+                    )
+                )
 
-            self.assertEqual(manifest["version"], "0.3.0")
-            self.assertEqual(pyproject["project"]["version"], "0.3.0")
+            self.assertEqual(manifest["version"], CURRENT_VERSION)
+            self.assertEqual(pyproject["project"]["version"], CURRENT_VERSION)
             self.assertTrue(
                 {
                     "manifest.json",
@@ -459,3 +492,6 @@ class PolybridgeMCPSmokeTest(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(any(name.startswith(".git/") for name in names))
             self.assertFalse(any("__pycache__" in name for name in names))
             self.assertFalse(any(name.endswith((".pyc", ".pyo")) for name in names))
+
+            self.assertNotIn(_stale_assets_input_name(), bundled_text)
+            self.assertNotIn(_stale_features_input_name(), bundled_text)

@@ -1,6 +1,6 @@
 [project]
 name = "polybridge-mcp-server"
-version = "0.3.0"
+version = "0.3.1"
 description = "PolyBridge MCP bundle"
 requires-python = ">=3.12"
 dependencies = [
