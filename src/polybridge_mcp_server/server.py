@@ -1,7 +1,7 @@
-"""MCP server wiring for PolyBridge Search and Forecast."""
+"""MCP server wiring for PolyBridge Search, Forecast, and RVOL."""
 
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Any, Awaitable, Callable
 
 import httpx
 from mcp.server.auth.middleware.auth_context import get_access_token
@@ -10,7 +10,7 @@ from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from polybridge_contracts.forecast import ForecastResponse
-from pydantic import Field
+from pydantic import BaseModel, Field
 from pydantic import ValidationError as PydanticValidationError
 
 from polybridge_mcp_server.client import (
@@ -22,6 +22,22 @@ from polybridge_mcp_server.config import DEFAULT_ATTRIBUTION_CODE, PolybridgeMCP
 from polybridge_mcp_server.tools.forecast import (
     POLYBRIDGE_FORECAST_TOOL_DESCRIPTION,
     ForecastToolRequest,
+)
+from polybridge_mcp_server.tools.rvol import (
+    POLYBRIDGE_RVOL_ACTUALS_TOOL_DESCRIPTION,
+    POLYBRIDGE_RVOL_ASSETS_TOOL_DESCRIPTION,
+    POLYBRIDGE_RVOL_FEATURES_LATEST_TOOL_DESCRIPTION,
+    POLYBRIDGE_RVOL_HISTORY_TOOL_DESCRIPTION,
+    POLYBRIDGE_RVOL_LATEST_TOOL_DESCRIPTION,
+    POLYBRIDGE_RVOL_MODELS_TOOL_DESCRIPTION,
+    RVOL_API_KEY_REQUIRED_MESSAGE,
+    RvolActualsRequest,
+    RvolAPIResponse,
+    RvolAssetsRequest,
+    RvolFeaturesLatestRequest,
+    RvolHistoryRequest,
+    RvolLatestRequest,
+    RvolModelsRequest,
 )
 from polybridge_mcp_server.tools.search import (
     API_KEY_SEARCH_TOOL_LIMITS,
@@ -42,13 +58,15 @@ FORECAST_READ_SCOPE = "forecast:read"
 LOCAL_SERVER_INSTRUCTIONS = (
     "Use polybridge_search to retrieve relevant prediction markets for a topic or question. "
     "Use polybridge_forecast to generate a read-only forecast using PolyBridge market search "
-    "and evidence synthesis. This server does not provide trading, market history, payments, "
+    "and evidence synthesis. Use the polybridge_rvol_* tools for approved read-only RVOL "
+    "access with a PolyBridge API key. This server does not provide trading, payments, "
     "Situation Room, or internal API access."
 )
 HOSTED_SERVER_INSTRUCTIONS = (
     "Use polybridge_search to retrieve relevant prediction markets for a topic or question. "
     "Use polybridge_forecast to generate a read-only forecast using PolyBridge market search "
-    "and evidence synthesis. This server does not provide trading, market history, payments, "
+    "and evidence synthesis. Use the polybridge_rvol_* tools for approved read-only RVOL "
+    "access with a PolyBridge API key. This server does not provide trading, payments, "
     "Situation Room, or internal API access."
 )
 
@@ -273,6 +291,252 @@ def create_server(
                     raise ToolError(LOCAL_FORECAST_SCOPE_ACCESS_MESSAGE) from exc
                 raise ToolError(LOCAL_FORECAST_AUTH_FAILED_MESSAGE) from exc
             raise ToolError(str(exc)) from exc
+
+    async def _execute_rvol_tool(
+        *,
+        tool_name: str,
+        request_model: type[BaseModel],
+        request_data: dict[str, Any],
+        client_method: Callable[..., Awaitable[RvolAPIResponse]],
+    ) -> RvolAPIResponse:
+        if not resolved_config.has_api_key:
+            raise ToolError(RVOL_API_KEY_REQUIRED_MESSAGE)
+        try:
+            request = request_model.model_validate(request_data)
+        except PydanticValidationError as exc:
+            raise ToolError(_format_validation_error(exc)) from exc
+
+        try:
+            return await client_method(
+                request,
+                attribution=_build_local_attribution(
+                    config=resolved_config,
+                    tool_name=tool_name,
+                ),
+            )
+        except PolybridgeClientError as exc:
+            raise ToolError(str(exc)) from exc
+
+    @server.tool(
+        name="polybridge_rvol_models",
+        title="PolyBridge RVOL Models",
+        description=POLYBRIDGE_RVOL_MODELS_TOOL_DESCRIPTION,
+        annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True),
+        structured_output=True,
+    )
+    async def polybridge_rvol_models(
+        model_id: Annotated[
+            str | None,
+            Field(description="Optional stable RVOL model identifier."),
+        ] = None,
+        limit: Annotated[
+            int,
+            Field(description="Maximum number of models to return.", ge=1, le=1000),
+        ] = 100,
+    ) -> RvolAPIResponse:
+        return await _execute_rvol_tool(
+            tool_name="polybridge_rvol_models",
+            request_model=RvolModelsRequest,
+            request_data={"model_id": model_id, "limit": limit},
+            client_method=client.rvol_models,
+        )
+
+    @server.tool(
+        name="polybridge_rvol_assets",
+        title="PolyBridge RVOL Assets",
+        description=POLYBRIDGE_RVOL_ASSETS_TOOL_DESCRIPTION,
+        annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True),
+        structured_output=True,
+    )
+    async def polybridge_rvol_assets(
+        include_inactive: Annotated[
+            bool,
+            Field(description="Whether to include inactive RVOL assets."),
+        ] = False,
+        limit: Annotated[
+            int,
+            Field(description="Maximum number of assets to return.", ge=1, le=1000),
+        ] = 500,
+    ) -> RvolAPIResponse:
+        return await _execute_rvol_tool(
+            tool_name="polybridge_rvol_assets",
+            request_model=RvolAssetsRequest,
+            request_data={"include_inactive": include_inactive, "limit": limit},
+            client_method=client.rvol_assets,
+        )
+
+    @server.tool(
+        name="polybridge_rvol_latest",
+        title="PolyBridge RVOL Latest",
+        description=POLYBRIDGE_RVOL_LATEST_TOOL_DESCRIPTION,
+        annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True),
+        structured_output=True,
+    )
+    async def polybridge_rvol_latest(
+        model: Annotated[
+            str | None,
+            Field(description="Optional RVOL model alias or model_id."),
+        ] = None,
+        model_version: Annotated[
+            str | None,
+            Field(description="Optional RVOL model version."),
+        ] = None,
+        asset: Annotated[
+            str | None,
+            Field(description="Optional RVOL asset symbol."),
+        ] = None,
+        horizon: Annotated[
+            str | None,
+            Field(description="Optional RVOL forecast horizon."),
+        ] = None,
+        limit: Annotated[
+            int,
+            Field(description="Maximum number of forecasts to return.", ge=1, le=1000),
+        ] = 100,
+    ) -> RvolAPIResponse:
+        return await _execute_rvol_tool(
+            tool_name="polybridge_rvol_latest",
+            request_model=RvolLatestRequest,
+            request_data={
+                "model": model,
+                "model_version": model_version,
+                "asset": asset,
+                "horizon": horizon,
+                "limit": limit,
+            },
+            client_method=client.rvol_latest,
+        )
+
+    @server.tool(
+        name="polybridge_rvol_history",
+        title="PolyBridge RVOL History",
+        description=POLYBRIDGE_RVOL_HISTORY_TOOL_DESCRIPTION,
+        annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True),
+        structured_output=True,
+    )
+    async def polybridge_rvol_history(
+        model: Annotated[
+            str | None,
+            Field(description="Optional RVOL model alias or model_id."),
+        ] = None,
+        model_version: Annotated[
+            str | None,
+            Field(description="Optional RVOL model version."),
+        ] = None,
+        asset: Annotated[
+            str | None,
+            Field(description="Optional RVOL asset symbol."),
+        ] = None,
+        horizon: Annotated[
+            str | None,
+            Field(description="Optional RVOL forecast horizon."),
+        ] = None,
+        start: Annotated[
+            str | None,
+            Field(description="Optional inclusive UTC as_of start ISO date-time."),
+        ] = None,
+        end: Annotated[
+            str | None,
+            Field(description="Optional inclusive UTC as_of end ISO date-time."),
+        ] = None,
+        limit: Annotated[
+            int,
+            Field(description="Maximum number of forecasts to return.", ge=1, le=10000),
+        ] = 1000,
+    ) -> RvolAPIResponse:
+        return await _execute_rvol_tool(
+            tool_name="polybridge_rvol_history",
+            request_model=RvolHistoryRequest,
+            request_data={
+                "model": model,
+                "model_version": model_version,
+                "asset": asset,
+                "horizon": horizon,
+                "start": start,
+                "end": end,
+                "limit": limit,
+            },
+            client_method=client.rvol_history,
+        )
+
+    @server.tool(
+        name="polybridge_rvol_actuals",
+        title="PolyBridge RVOL Actuals",
+        description=POLYBRIDGE_RVOL_ACTUALS_TOOL_DESCRIPTION,
+        annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True),
+        structured_output=True,
+    )
+    async def polybridge_rvol_actuals(
+        asset: Annotated[
+            str | None,
+            Field(description="Optional RVOL asset symbol."),
+        ] = None,
+        horizon: Annotated[
+            str | None,
+            Field(description="Optional RVOL horizon."),
+        ] = None,
+        start: Annotated[
+            str | None,
+            Field(description="Optional inclusive UTC as_of start ISO date-time."),
+        ] = None,
+        end: Annotated[
+            str | None,
+            Field(description="Optional inclusive UTC as_of end ISO date-time."),
+        ] = None,
+        limit: Annotated[
+            int,
+            Field(description="Maximum number of actuals to return.", ge=1, le=10000),
+        ] = 1000,
+    ) -> RvolAPIResponse:
+        return await _execute_rvol_tool(
+            tool_name="polybridge_rvol_actuals",
+            request_model=RvolActualsRequest,
+            request_data={
+                "asset": asset,
+                "horizon": horizon,
+                "start": start,
+                "end": end,
+                "limit": limit,
+            },
+            client_method=client.rvol_actuals,
+        )
+
+    @server.tool(
+        name="polybridge_rvol_features_latest",
+        title="PolyBridge RVOL Features Latest",
+        description=POLYBRIDGE_RVOL_FEATURES_LATEST_TOOL_DESCRIPTION,
+        annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True),
+        structured_output=True,
+    )
+    async def polybridge_rvol_features_latest(
+        asset: Annotated[
+            str | None,
+            Field(description="Optional RVOL asset symbol."),
+        ] = None,
+        horizon: Annotated[
+            str | None,
+            Field(description="Optional RVOL horizon."),
+        ] = None,
+        feature_set_id: Annotated[
+            str | None,
+            Field(description="Optional public feature-set identifier."),
+        ] = None,
+        limit: Annotated[
+            int,
+            Field(description="Maximum number of feature snapshots to return.", ge=1, le=1000),
+        ] = 100,
+    ) -> RvolAPIResponse:
+        return await _execute_rvol_tool(
+            tool_name="polybridge_rvol_features_latest",
+            request_model=RvolFeaturesLatestRequest,
+            request_data={
+                "asset": asset,
+                "horizon": horizon,
+                "feature_set_id": feature_set_id,
+                "limit": limit,
+            },
+            client_method=client.rvol_features_latest,
+        )
 
     return server
 

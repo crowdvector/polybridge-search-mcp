@@ -1,4 +1,4 @@
-"""HTTP client for the PolyBridge Search and Forecast APIs."""
+"""HTTP client for the PolyBridge Search, Forecast, and RVOL APIs."""
 
 from __future__ import annotations
 
@@ -13,6 +13,17 @@ from polybridge_mcp_server.tools.forecast import (
     ForecastResponseShapeError,
     ForecastToolRequest,
     parse_forecast_response_payload,
+)
+from polybridge_mcp_server.tools.rvol import (
+    RVOL_API_KEY_REQUIRED_MESSAGE,
+    RvolActualsRequest,
+    RvolAPIResponse,
+    RvolAssetsRequest,
+    RvolFeaturesLatestRequest,
+    RvolHistoryRequest,
+    RvolLatestRequest,
+    RvolModelsRequest,
+    filter_public_rvol_payload,
 )
 from polybridge_mcp_server.tools.search import (
     SearchAPIResponse,
@@ -324,6 +335,185 @@ class PolybridgeSearchClient:
             detail=detail,
         )
 
+    async def rvol_models(
+        self,
+        request: RvolModelsRequest,
+        *,
+        attribution: AttributionEnvelope | None = None,
+    ) -> RvolAPIResponse:
+        return await self._get_rvol(
+            "/v1/rvol/models",
+            params=request.to_query_params(),
+            attribution=attribution,
+        )
+
+    async def rvol_assets(
+        self,
+        request: RvolAssetsRequest,
+        *,
+        attribution: AttributionEnvelope | None = None,
+    ) -> RvolAPIResponse:
+        return await self._get_rvol(
+            "/v1/rvol/assets",
+            params=request.to_query_params(),
+            attribution=attribution,
+        )
+
+    async def rvol_latest(
+        self,
+        request: RvolLatestRequest,
+        *,
+        attribution: AttributionEnvelope | None = None,
+    ) -> RvolAPIResponse:
+        return await self._get_rvol(
+            "/v1/rvol/latest",
+            params=request.to_query_params(),
+            attribution=attribution,
+        )
+
+    async def rvol_history(
+        self,
+        request: RvolHistoryRequest,
+        *,
+        attribution: AttributionEnvelope | None = None,
+    ) -> RvolAPIResponse:
+        return await self._get_rvol(
+            "/v1/rvol/history",
+            params=request.to_query_params(),
+            attribution=attribution,
+        )
+
+    async def rvol_actuals(
+        self,
+        request: RvolActualsRequest,
+        *,
+        attribution: AttributionEnvelope | None = None,
+    ) -> RvolAPIResponse:
+        return await self._get_rvol(
+            "/v1/rvol/actuals",
+            params=request.to_query_params(),
+            attribution=attribution,
+        )
+
+    async def rvol_features_latest(
+        self,
+        request: RvolFeaturesLatestRequest,
+        *,
+        attribution: AttributionEnvelope | None = None,
+    ) -> RvolAPIResponse:
+        return await self._get_rvol(
+            "/v1/rvol/features/latest",
+            params=request.to_query_params(),
+            attribution=attribution,
+        )
+
+    async def _get_rvol(
+        self,
+        path: str,
+        *,
+        params: dict[str, object],
+        attribution: AttributionEnvelope | None = None,
+    ) -> RvolAPIResponse:
+        if self.config.api_key is None:
+            raise PolybridgeAuthError(RVOL_API_KEY_REQUIRED_MESSAGE)
+
+        try:
+            async with httpx.AsyncClient(
+                base_url=self.config.api_base_url,
+                timeout=httpx.Timeout(self.config.timeout_seconds, connect=5.0),
+                transport=self.transport,
+            ) as client:
+                response = await client.get(
+                    path,
+                    params=params,
+                    headers=self._build_headers(attribution=attribution),
+                )
+        except httpx.TimeoutException as exc:
+            raise PolybridgeTimeoutError("PolyBridge RVOL request timed out") from exc
+        except httpx.ConnectError as exc:
+            raise PolybridgeUpstreamError(
+                "PolyBridge RVOL backend unavailable; check POLYBRIDGE_API_BASE_URL "
+                "and that the PolyBridge API is reachable",
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise PolybridgeUpstreamError(f"PolyBridge RVOL request failed: {exc}") from exc
+
+        if response.status_code == 200:
+            try:
+                payload = response.json()
+            except ValueError as exc:
+                raise PolybridgeUpstreamError(
+                    "PolyBridge RVOL API returned invalid JSON",
+                    status_code=200,
+                ) from exc
+            try:
+                return filter_public_rvol_payload(payload)
+            except ValueError as exc:
+                raise PolybridgeUpstreamError(str(exc), status_code=200) from exc
+
+        detail = _extract_rvol_error_detail(response)
+        retry_after = response.headers.get("Retry-After")
+
+        if response.status_code == 401:
+            raise PolybridgeAuthError(
+                "PolyBridge rejected the configured API key for RVOL. Check "
+                "POLYBRIDGE_API_KEY and make sure the key is active and approved for "
+                "rvol:read.",
+                status_code=401,
+                detail=detail,
+            )
+        if response.status_code == 403:
+            raise PolybridgeAuthError(
+                "This API key does not include rvol:read. Use an approved key or "
+                "request RVOL access.",
+                status_code=403,
+                detail=detail,
+            )
+        if response.status_code == 429:
+            message = "PolyBridge RVOL rate limit exceeded. Retry later."
+            if retry_after is not None:
+                message = (
+                    "PolyBridge RVOL rate limit exceeded. Retry after "
+                    f"{retry_after} second(s)."
+                )
+            raise PolybridgeRateLimitError(
+                message,
+                status_code=429,
+                retry_after=retry_after,
+                detail=detail,
+            )
+        if response.status_code == 422:
+            raise PolybridgeValidationError(
+                f"PolyBridge RVOL request is invalid: {detail}",
+                status_code=422,
+                detail=detail,
+            )
+        if response.status_code in {503, 504}:
+            message = f"PolyBridge RVOL API unavailable: {detail}"
+            if retry_after is not None:
+                message = f"{message}; retry after {retry_after} second(s)"
+            raise PolybridgeUpstreamError(
+                message,
+                status_code=response.status_code,
+                retry_after=retry_after,
+                detail=detail,
+            )
+        if 500 <= response.status_code <= 599:
+            message = f"PolyBridge RVOL API unavailable: {detail}"
+            if retry_after is not None:
+                message = f"{message}; retry after {retry_after} second(s)"
+            raise PolybridgeUpstreamError(
+                message,
+                status_code=response.status_code,
+                retry_after=retry_after,
+                detail=detail,
+            )
+        raise PolybridgeClientError(
+            f"PolyBridge RVOL request failed with status {response.status_code}: {detail}",
+            status_code=response.status_code,
+            detail=detail,
+        )
+
     def _build_headers(
         self,
         *,
@@ -380,4 +570,19 @@ def _extract_error_detail(response: httpx.Response) -> str:
         detail = payload.get("detail")
         if isinstance(detail, str) and detail.strip():
             return detail.strip()
+    return "unknown upstream error"
+
+
+def _extract_rvol_error_detail(response: httpx.Response) -> str:
+    try:
+        payload: Any = response.json()
+    except ValueError:
+        body = response.text.strip()
+        return body or "unknown upstream error"
+    if isinstance(payload, dict):
+        detail = payload.get("detail")
+        if isinstance(detail, str) and detail.strip():
+            return detail.strip()
+        if detail is not None:
+            return str(detail)
     return "unknown upstream error"
