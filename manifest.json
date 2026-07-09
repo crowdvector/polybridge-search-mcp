@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "polybridge-mcp",
   "display_name": "PolyBridge MCP",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Read-only PolyBridge tools for Search, Forecast, and approved RVOL data access.",
   "long_description": "PolyBridge MCP gives Claude Desktop probabilistic foresight from live prediction markets and approved read-only RVOL data access. Ask a question about the future, even when no exact market exists, or inspect approved realized-volatility model outputs when your PolyBridge API key includes rvol:read.\n\nSearch and Forecast can run without an API key at anonymous limits. Add POLYBRIDGE_API_KEY for higher Search/Forecast usage and for approved RVOL access. PolyBridge MCP is read-only. It does not trade or move funds.",
   "icon": "assets/icon.png",

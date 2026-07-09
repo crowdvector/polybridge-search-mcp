@@ -1,6 +1,13 @@
 # Changelog
 
-## PolyBridge MCP v0.3.0 (unreleased)
+## PolyBridge MCP v0.3.1
+
+- Removes stale public RVOL MCP inputs that the hardened public RVOL API no longer accepts or echoes.
+- Keeps all Search, Forecast, and RVOL tools read-only.
+- Keeps Search and Forecast anonymous behavior unchanged.
+- Keeps RVOL requiring approved PolyBridge API-key access with `rvol:read`.
+
+## PolyBridge MCP v0.3.0
 
 - Adds six read-only RVOL MCP tools for models, assets, latest forecasts, forecast history, actuals, and latest feature snapshot metadata.
 - Requires approved PolyBridge API-key access with `rvol:read` for RVOL; RVOL does not support anonymous access.

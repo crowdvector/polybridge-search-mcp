@@ -60,7 +60,6 @@ PUBLIC_RVOL_FIELDS = frozenset(
         "actual_value",
         "realized_variance",
         "realized_volatility",
-        "feature_set_id",
         "feature_families",
     }
 )
@@ -79,7 +78,6 @@ class RvolModelsRequest(RvolRequest):
 
 
 class RvolAssetsRequest(RvolRequest):
-    include_inactive: bool = False
     limit: int = Field(default=500, ge=1, le=1000)
 
 
@@ -122,7 +120,6 @@ class RvolActualsRequest(RvolRequest):
 class RvolFeaturesLatestRequest(RvolRequest):
     asset: str | None = None
     horizon: str | None = None
-    feature_set_id: str | None = None
     limit: int = Field(default=100, ge=1, le=1000)
 
 

@@ -112,7 +112,7 @@ With `POLYBRIDGE_API_KEY`:
 
 ## Release Packaging
 
-For a local v0.3.0 MCPB build, run:
+For a local v0.3.1 MCPB build, run:
 
 ```sh
 python3 scripts/build_mcpb.py
@@ -120,8 +120,8 @@ python3 scripts/build_mcpb.py
 
 This creates local artifacts only:
 
-- `dist/polybridge-mcp-v0.3.0.mcpb`
-- `dist/polybridge-mcp-v0.3.0.mcpb.sha256`
+- `dist/polybridge-mcp-v0.3.1.mcpb`
+- `dist/polybridge-mcp-v0.3.1.mcpb.sha256`
 
 Do not publish, tag, or upload these files until the release has passed review.
 

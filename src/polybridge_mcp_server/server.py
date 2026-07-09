@@ -349,10 +349,6 @@ def create_server(
         structured_output=True,
     )
     async def polybridge_rvol_assets(
-        include_inactive: Annotated[
-            bool,
-            Field(description="Whether to include inactive RVOL assets."),
-        ] = False,
         limit: Annotated[
             int,
             Field(description="Maximum number of assets to return.", ge=1, le=1000),
@@ -361,7 +357,7 @@ def create_server(
         return await _execute_rvol_tool(
             tool_name="polybridge_rvol_assets",
             request_model=RvolAssetsRequest,
-            request_data={"include_inactive": include_inactive, "limit": limit},
+            request_data={"limit": limit},
             client_method=client.rvol_assets,
         )
 
@@ -517,10 +513,6 @@ def create_server(
             str | None,
             Field(description="Optional RVOL horizon."),
         ] = None,
-        feature_set_id: Annotated[
-            str | None,
-            Field(description="Optional public feature-set identifier."),
-        ] = None,
         limit: Annotated[
             int,
             Field(description="Maximum number of feature snapshots to return.", ge=1, le=1000),
@@ -532,7 +524,6 @@ def create_server(
             request_data={
                 "asset": asset,
                 "horizon": horizon,
-                "feature_set_id": feature_set_id,
                 "limit": limit,
             },
             client_method=client.rvol_features_latest,
